@@ -1,1 +1,1 @@
-# fringe-mode
+# fringe-mode.nvim
