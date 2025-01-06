@@ -89,6 +89,15 @@ M.toggle_fringe_windows = function()
 end
 
 M.window_stats = function()
+  local total_height = vim.o.lines
+  local cmdheight = vim.o.cmdheight
+  local usable_height = total_height - cmdheight
+
+  local statusline = vim.o.laststatus > 0 and 1 or 0
+  local actual_height = total_height - cmdheight - statusline
+
+  print(string.format("Height %d: \n" .. "Height %d: \n" .. "Width: %d\n", usable_height, actual_height, vim.o.columns))
+
   -- Get a list of all window IDs
   local win_ids = vim.api.nvim_list_wins()
 
