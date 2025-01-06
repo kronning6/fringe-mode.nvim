@@ -1,21 +1,41 @@
 local M = {}
 
--- Requirements
--- - Adds left and right fringe dynamically
--- - Can toggle on and off
--- - Adjusts size of fringe based on how many vertical splits there are
--- - Takes window width into account when calculating
--- - Takes zoom in and out (base calculations based on columns)
--- - Uses standard line widths into account when calculating (e.g. 80 and 120)
--- - Make fringe windows excluded from things like Ctrl-W o and opening a buffer in it
-
 local state = {
+  augroup = nil,
   left_win = nil,
   right_win = nil,
 }
 
 M.setup = function()
-  -- TODO: Implement me
+  if state.augroup then
+    vim.api.nvim_clear_autocmds({ group = state.augroup })
+  end
+
+  state.augroup = vim.api.nvim_create_augroup("FringeMode", { clear = true })
+
+  vim.api.nvim_create_autocmd("WinEnter", {
+    group = state.augroup,
+    callback = function()
+      local win_id = vim.api.nvim_get_current_win()
+      if win_id == state.left_win or win_id == state.right_win then
+        vim.cmd("wincmd p")
+      end
+    end,
+  })
+
+  vim.api.nvim_create_autocmd("VimResized", {
+    group = state.augroup,
+    callback = function()
+      -- Handle resize events
+    end,
+  })
+end
+
+M.disable = function()
+  if state.augroup then
+    vim.api.nvim_clear_autocmds({ group = state.augroup })
+    state.augroup = nil
+  end
 end
 
 local create_fringe_windows = function()
@@ -65,6 +85,42 @@ M.toggle_fringe_windows = function()
     vim.api.nvim_win_close(state.right_win, true)
     state.left_win = nil
     state.right_win = nil
+  end
+end
+
+M.window_stats = function()
+  -- Get a list of all window IDs
+  local win_ids = vim.api.nvim_list_wins()
+
+  -- Get detailed info about each window
+  for _, win_id in ipairs(win_ids) do
+    -- Get window position and size
+    local config = vim.api.nvim_win_get_config(win_id)
+
+    -- Get buffer in window
+    local buf = vim.api.nvim_win_get_buf(win_id)
+
+    -- Get window options
+    local win_info = vim.fn.getwininfo(win_id)[1]
+
+    print(
+      string.format(
+        "Window %d:\n"
+          .. "  Buffer: %d\n"
+          .. "  Position: row=%d, col=%d\n"
+          .. "  Size: width=%d, height=%d\n"
+          .. "  Winnr: %d\n"
+          .. "  Is current: %s",
+        win_id,
+        buf,
+        config.row or win_info.winrow,
+        config.col or win_info.wincol,
+        vim.api.nvim_win_get_width(win_id),
+        vim.api.nvim_win_get_height(win_id),
+        win_info.winnr,
+        win_id == vim.api.nvim_get_current_win() and "yes" or "no"
+      )
+    )
   end
 end
 
