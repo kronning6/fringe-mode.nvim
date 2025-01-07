@@ -7,6 +7,11 @@ TODO: Add video here
 - Adds fringe (margin) to left and right of main windows
 - Toggle on and off
 - Fringe windows can't be navigated to from other windows
+- Simple resize logic applied
+
+## Limitations
+
+- Doesn't work too well with left side tree
 
 ## Roadmap
 

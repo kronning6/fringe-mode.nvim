@@ -6,85 +6,86 @@ local state = {
   right_win = nil,
 }
 
-M.setup = function()
-  if state.augroup then
-    vim.api.nvim_clear_autocmds({ group = state.augroup })
-  end
-
-  state.augroup = vim.api.nvim_create_augroup("FringeMode", { clear = true })
-
-  vim.api.nvim_create_autocmd("WinEnter", {
-    group = state.augroup,
-    callback = function()
-      local win_id = vim.api.nvim_get_current_win()
-      if win_id == state.left_win or win_id == state.right_win then
-        vim.cmd("wincmd p")
-      end
-    end,
-  })
-
-  vim.api.nvim_create_autocmd("VimResized", {
-    group = state.augroup,
-    callback = function()
-      -- Handle resize events
-    end,
-  })
+local is_fringe_active = function()
+  return state.left_win ~= nil
+    and vim.api.nvim_win_is_valid(state.left_win)
+    and state.right_win ~= nil
+    and vim.api.nvim_win_is_valid(state.right_win)
 end
 
-M.disable = function()
-  if state.augroup then
-    vim.api.nvim_clear_autocmds({ group = state.augroup })
-    state.augroup = nil
+local is_fringe_window = function(win_id)
+  return is_fringe_active() and (state.left_win == win_id or state.right_win == win_id)
+end
+
+local resize_windows = function()
+  if is_fringe_active() then
+    vim.api.nvim_win_call(state.left_win, function()
+      vim.cmd("wincmd H")
+    end)
+
+    vim.api.nvim_win_call(state.right_win, function()
+      vim.cmd("wincmd L")
+    end)
+
+    vim.cmd("wincmd =")
+
+    local nvim_width = vim.o.columns
+    local win_ids = vim.api.nvim_list_wins()
+
+    local win_column_count = 0
+    for _, win_id in ipairs(win_ids) do
+      -- Get window position and size
+      local config = vim.api.nvim_win_get_config(win_id)
+
+      -- Get window options
+      local win_info = vim.fn.getwininfo(win_id)[1]
+
+      local row = config.row or win_info.winrow
+      -- local col = config.col or win_info.wincol
+
+      if row == 1 and not is_fringe_window(win_id) then
+        win_column_count = win_column_count + 1
+      end
+    end
+    -- print(win_column_count)
+
+    local fringe_width = math.max(math.floor((nvim_width - (120 * win_column_count)) / 2), 0)
+    print(fringe_width)
+
+    vim.api.nvim_win_set_width(state.left_win, fringe_width)
+    vim.api.nvim_win_set_width(state.right_win, fringe_width)
   end
 end
 
 local create_fringe_windows = function()
-  -- local columns = vim.o.columns
-  -- local lines = vim.o.lines
+  if is_fringe_active() then
+    return
+  end
 
   local buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_option(buf, "modifiable", false)
 
-  local left_opts = {
+  state.left_win = vim.api.nvim_open_win(buf, false, {
     split = "left",
     width = 10,
     height = 1,
     style = "minimal",
-  }
+  })
 
-  state.left_win = vim.api.nvim_open_win(buf, false, left_opts)
-
-  vim.api.nvim_win_call(state.left_win, function()
-    vim.cmd("wincmd H")
-  end)
-
-  local right_opts = {
+  state.right_win = vim.api.nvim_open_win(buf, false, {
     split = "right",
     width = 10,
     height = 1,
     style = "minimal",
-  }
+  })
 
-  state.right_win = vim.api.nvim_open_win(buf, false, right_opts)
-
-  vim.api.nvim_win_call(state.right_win, function()
-    vim.cmd("wincmd L")
-  end)
-
-  vim.cmd("wincmd =")
-
-  vim.api.nvim_win_set_width(state.left_win, 70)
-  vim.api.nvim_win_set_width(state.right_win, 70)
+  resize_windows()
 end
 
-M.toggle_fringe_windows = function()
-  if state.left_win == nil and state.right_win == nil then
-    create_fringe_windows()
-  else
-    vim.api.nvim_win_close(state.left_win, true)
-    vim.api.nvim_win_close(state.right_win, true)
-    state.left_win = nil
-    state.right_win = nil
+local prevent_move_into_fringe = function()
+  local win_id = vim.api.nvim_get_current_win()
+  if win_id == state.left_win or win_id == state.right_win then
+    vim.cmd("wincmd p")
   end
 end
 
@@ -131,6 +132,65 @@ M.window_stats = function()
       )
     )
   end
+end
+
+M.disable = function()
+  if state.augroup then
+    vim.api.nvim_clear_autocmds({ group = state.augroup })
+    state.augroup = nil
+  end
+end
+
+M.toggle_fringe_windows = function()
+  if not is_fringe_active() then
+    create_fringe_windows()
+  else
+    vim.api.nvim_win_close(state.left_win, true)
+    vim.api.nvim_win_close(state.right_win, true)
+    state.left_win = nil
+    state.right_win = nil
+  end
+end
+
+M.setup = function()
+  if state.augroup then
+    M.disable()
+  end
+
+  state.augroup = vim.api.nvim_create_augroup("FringeMode", { clear = true })
+
+  vim.api.nvim_create_autocmd("WinEnter", {
+    group = state.augroup,
+    callback = function()
+      prevent_move_into_fringe()
+    end,
+  })
+
+  -- FIXME: Doesn't resize on close or prevent fringe windows from closing when active
+  vim.api.nvim_create_autocmd("WinClosed", {
+    callback = function(args)
+      local closed_win_id = math.floor(tonumber(args.match) or -1)
+
+      if closed_win_id ~= state.left_win and closed_win_id ~= state.right_win then
+        resize_windows()
+      end
+    end,
+  })
+
+  vim.api.nvim_create_autocmd("VimResized", {
+    group = state.augroup,
+    callback = function()
+      resize_windows()
+    end,
+  })
+
+  -- FIXME: Doesn't resize fringe when other windows resize
+  vim.api.nvim_create_autocmd("WinResized", {
+    group = state.augroup,
+    callback = function()
+      -- resize_windows()
+    end,
+  })
 end
 
 return M
