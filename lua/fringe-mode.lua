@@ -50,7 +50,7 @@ local resize_windows = function()
     -- print(win_column_count)
 
     local fringe_width = math.max(math.floor((nvim_width - (120 * win_column_count)) / 2), 0)
-    print(fringe_width)
+    -- print(fringe_width)
 
     vim.api.nvim_win_set_width(state.left_win, fringe_width)
     vim.api.nvim_win_set_width(state.right_win, fringe_width)
