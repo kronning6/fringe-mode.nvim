@@ -8,6 +8,7 @@ TODO: Add video here
 - Toggle on and off
 - Fringe windows can't be navigated to from other windows
 - Simple resize logic applied
+- Set a non changable background color for fringe mode windows
 
 ## Limitations
 

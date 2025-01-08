@@ -2,23 +2,24 @@ local M = {}
 
 local state = {
   augroup = nil,
+  buf = nil,
   left_win = nil,
   right_win = nil,
 }
 
-local is_fringe_active = function()
+local is_fringe_mode_active = function()
   return state.left_win ~= nil
     and vim.api.nvim_win_is_valid(state.left_win)
     and state.right_win ~= nil
     and vim.api.nvim_win_is_valid(state.right_win)
 end
 
-local is_fringe_window = function(win_id)
-  return is_fringe_active() and (state.left_win == win_id or state.right_win == win_id)
+local is_fringe_mode_window = function(win_id)
+  return is_fringe_mode_active() and (state.left_win == win_id or state.right_win == win_id)
 end
 
 local resize_windows = function()
-  if is_fringe_active() then
+  if is_fringe_mode_active() then
     vim.api.nvim_win_call(state.left_win, function()
       vim.cmd("wincmd H")
     end)
@@ -43,7 +44,7 @@ local resize_windows = function()
       local row = config.row or win_info.winrow
       -- local col = config.col or win_info.wincol
 
-      if row == 1 and not is_fringe_window(win_id) then
+      if row == 1 and not is_fringe_mode_window(win_id) then
         win_column_count = win_column_count + 1
       end
     end
@@ -57,32 +58,34 @@ local resize_windows = function()
   end
 end
 
-local create_fringe_windows = function()
-  if is_fringe_active() then
+local create_fringe_mode_windows = function()
+  if is_fringe_mode_active() then
     return
   end
 
-  local buf = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_set_option(buf, "modifiable", false)
+  if state.buf == nil then
+    state.buf = vim.api.nvim_create_buf(false, true)
+  end
+  vim.api.nvim_buf_set_option(state.buf, "modifiable", false)
 
-  state.left_win = vim.api.nvim_open_win(buf, false, {
+  state.left_win = vim.api.nvim_open_win(state.buf, false, {
     split = "left",
-    width = 10,
-    height = 1,
     style = "minimal",
   })
 
-  state.right_win = vim.api.nvim_open_win(buf, false, {
+  state.right_win = vim.api.nvim_open_win(state.buf, false, {
     split = "right",
-    width = 10,
-    height = 1,
     style = "minimal",
   })
+
+  vim.api.nvim_set_hl(0, "FringeModeBackground", { bg = "#1a1a1a" })
+  vim.api.nvim_win_set_option(state.left_win, "winhl", "Normal:FringeModeBackground")
+  vim.api.nvim_win_set_option(state.right_win, "winhl", "Normal:FringeModeBackground")
 
   resize_windows()
 end
 
-local prevent_move_into_fringe = function()
+local prevent_move_into_fringe_window = function()
   local win_id = vim.api.nvim_get_current_win()
   if win_id == state.left_win or win_id == state.right_win then
     vim.cmd("wincmd p")
@@ -141,14 +144,16 @@ M.disable = function()
   end
 end
 
-M.toggle_fringe_windows = function()
-  if not is_fringe_active() then
-    create_fringe_windows()
+M.toggle_fringe_mode_windows = function()
+  if not is_fringe_mode_active() then
+    create_fringe_mode_windows()
   else
     vim.api.nvim_win_close(state.left_win, true)
     vim.api.nvim_win_close(state.right_win, true)
     state.left_win = nil
     state.right_win = nil
+    vim.api.nvim_buf_delete(state.buf, { force = true })
+    state.buf = nil
   end
 end
 
@@ -162,7 +167,7 @@ M.setup = function()
   vim.api.nvim_create_autocmd("WinEnter", {
     group = state.augroup,
     callback = function()
-      prevent_move_into_fringe()
+      prevent_move_into_fringe_window()
     end,
   })
 
