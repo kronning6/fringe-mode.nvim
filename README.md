@@ -7,12 +7,14 @@ TODO: Add video here
 - Adds fringe (margin) to left and right of main windows
 - Toggle on and off
 - Fringe windows can't be navigated to from other windows
-- Set a non changable background color for fringe mode windows
 
 ## Limitations
 
-- Doesn't work too well with left side tree
-- Fringe windows can get displaced with ctrl-w commands like ctrl-w L, etc
+- Works alright with nvim-tree (and likely other nav trees) but bugs may exist
+
+## Bugs
+
+- Unknown
 
 ## Roadmap
 
@@ -29,7 +31,9 @@ TODO: Add video here
 1. Add configurable options
    1. Balance windows on mode activation or maintain width proportions
    1. Smart window width adjustments (prefer: 120 (default), narrow: 80 (default))
-   1. Fringe background color (default to no background color difference)
+   1. Fringe background color (default to no background color)
+   1. Add option to override ctrl-w o to provide a better UX that doesn't flicker
+1. Remove border and padding between windows (visiable when fringe window bg color is changed)
 
 ## Inspiration
 
