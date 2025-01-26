@@ -10,10 +10,18 @@ local state = {
   wins = {},
 }
 
-local config = {
+---@class FringeModeOptions
+local default_options = {
   bgcolor = nil,
   balance_windows = false,
+  widths = {
+    normal = 128,
+    narrow = 88,
+  },
 }
+
+---@type FringeModeOptions
+M.options = {}
 
 local function is_fringe_mode_active()
   return state.active
@@ -109,7 +117,7 @@ local function create_fringe_mode_windows()
     })
   end
 
-  if config.bgcolor then
+  if M.options.bgcolor then
     vim.api.nvim_win_set_option(state.left_win, "winhl", "Normal:FringeModeBackground")
     vim.api.nvim_win_set_option(state.right_win, "winhl", "Normal:FringeModeBackground")
   end
@@ -126,7 +134,7 @@ local function position_windows()
 end
 
 local function resize_windows()
-  if config.balance_windows then
+  if M.options.balance_windows then
     vim.cmd("wincmd =")
   end
 
@@ -134,7 +142,7 @@ local function resize_windows()
   local win_ids = vim.api.nvim_list_wins()
 
   local win_column_count = 0
-  local win_width = 0
+  local wins = {}
   for _, win_id in ipairs(win_ids) do
     -- Get window position and size
     local win_config = vim.api.nvim_win_get_config(win_id)
@@ -143,18 +151,24 @@ local function resize_windows()
     local win_info = vim.fn.getwininfo(win_id)[1]
 
     local row = win_config.row or win_info.winrow
-    local width = vim.api.nvim_win_get_width(win_id)
 
+    -- TODO: Track more than the top row to support horizontal splits
     if row == 1 and not is_fringe_mode_window(win_id) then
       win_column_count = win_column_count + 1
-      win_width = win_width + width
+      table.insert(wins, win_id)
     end
   end
 
-  local fringe_width = math.max(math.floor((nvim_width - win_width) / 2), 0)
+  local fringe_width = math.max(math.floor((nvim_width - (M.options.widths.normal * win_column_count)) / 2), 0)
+  if fringe_width < 10 then
+    fringe_width = math.max(math.floor((nvim_width - (M.options.widths.narrow * win_column_count)) / 2), 0)
+  end
 
   vim.api.nvim_win_set_width(state.left_win, fringe_width)
   vim.api.nvim_win_set_width(state.right_win, fringe_width)
+  for _, win_id in ipairs(wins) do
+    vim.api.nvim_win_set_width(win_id, (nvim_width - (2 * fringe_width)) / win_column_count)
+  end
 end
 
 local function start_fringe_mode()
@@ -162,12 +176,12 @@ local function start_fringe_mode()
     return
   end
 
-  state.active = true
   -- capture_window_info()
   create_fringe_mode_windows()
   position_windows()
   resize_windows()
   -- capture_window_info()
+  state.active = true
 end
 
 local function prevent_move_into_fringe_window()
@@ -190,12 +204,14 @@ function M.disable()
   end
 end
 
-function M.setup()
+---@param options FringeModeOptions|nil
+function M.setup(options)
+  M.options = vim.tbl_deep_extend("force", default_options, options or {})
   if state.augroup then
     M.disable()
   end
 
-  vim.api.nvim_set_hl(0, "FringeModeBackground", { bg = "#1a1a1a" })
+  vim.api.nvim_set_hl(0, "FringeModeBackground", { bg = M.options.bgcolor })
 
   state.augroup = vim.api.nvim_create_augroup("FringeMode", { clear = true })
 
@@ -228,9 +244,9 @@ function M.setup()
     group = state.augroup,
     callback = function()
       -- TODO: Implement me
-      if is_fringe_mode_active() then
-        position_windows()
-      end
+      -- if is_fringe_mode_active() then
+      --   position_windows()
+      -- end
     end,
   })
 
