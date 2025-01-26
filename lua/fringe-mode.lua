@@ -176,11 +176,9 @@ local function start_fringe_mode()
     return
   end
 
-  -- capture_window_info()
   create_fringe_mode_windows()
   position_windows()
   resize_windows()
-  -- capture_window_info()
   state.active = true
 end
 
