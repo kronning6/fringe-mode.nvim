@@ -36,6 +36,7 @@ end
 local function reset_state()
   state.active = false
   state.initial_resize_called = false
+  state.wins = {}
 
   if vim.api.nvim_win_is_valid(state.left_win) then
     vim.api.nvim_win_close(state.left_win, true)
@@ -120,7 +121,7 @@ local function position_windows()
 end
 
 local function resize_windows()
-  if M.options.balance_windows then
+  if M.options.balance_windows and #state.wins <= 0 then
     vim.cmd("wincmd =")
   end
 
@@ -128,6 +129,7 @@ local function resize_windows()
   local win_ids = vim.api.nvim_list_wins()
 
   local win_column_count = 0
+  local win_width_total = 0
   local wins = {}
   for _, win_id in ipairs(win_ids) do
     -- Get window position and size
@@ -137,23 +139,42 @@ local function resize_windows()
     local win_info = vim.fn.getwininfo(win_id)[1]
 
     local row = win_config.row or win_info.winrow
+    local width = vim.api.nvim_win_get_width(win_id)
 
     -- TODO: Track more than the top row to support horizontal splits
     if row == 1 and not is_fringe_mode_window(win_id) then
       win_column_count = win_column_count + 1
+      win_width_total = win_width_total + width
       table.insert(wins, win_id)
     end
   end
 
-  local fringe_width = math.max(math.floor((nvim_width - (M.options.widths.normal * win_column_count)) / 2), 0)
-  if fringe_width < M.options.min_fringe_width then
-    fringe_width = math.max(math.floor((nvim_width - (M.options.widths.narrow * win_column_count)) / 2), 0)
+  local prev_win_width_total = 0
+  for _, win in ipairs(state.wins) do
+    if win.row == 1 and not is_fringe_mode_window(win.win_id) then
+      prev_win_width_total = prev_win_width_total + win.width
+    end
+  end
+
+  local fringe_width = 0
+  if #state.wins > 0 then
+    fringe_width = math.max(
+      math.floor(vim.api.nvim_win_get_width(state.left_win) + ((prev_win_width_total - win_width_total) / 2)),
+      0
+    )
+  else
+    fringe_width = math.max(math.floor((nvim_width - (M.options.widths.normal * win_column_count)) / 2), 0)
+    if fringe_width < M.options.min_fringe_width then
+      fringe_width = math.max(math.floor((nvim_width - (M.options.widths.narrow * win_column_count)) / 2), 0)
+    end
   end
 
   vim.api.nvim_win_set_width(state.left_win, fringe_width)
   vim.api.nvim_win_set_width(state.right_win, fringe_width)
-  for _, win_id in ipairs(wins) do
-    vim.api.nvim_win_set_width(win_id, (nvim_width - (2 * fringe_width)) / win_column_count)
+  if #state.wins <= 0 then
+    for _, win_id in ipairs(wins) do
+      vim.api.nvim_win_set_width(win_id, (nvim_width - (2 * fringe_width)) / win_column_count)
+    end
   end
 
   capture_window_info()
@@ -235,7 +256,7 @@ function M.setup(options)
           state.initial_resize_called = true
         else
           -- TODO: Enable when function supports resizing after initial resize
-          -- resize_windows()
+          resize_windows()
         end
       end
     end,
