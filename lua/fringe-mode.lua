@@ -8,12 +8,14 @@ local state = {
   left_win = nil,
   right_win = nil,
   wins = {},
+  initial_resize_called = false,
 }
 
 ---@class FringeModeOptions
 local default_options = {
   bgcolor = nil,
   balance_windows = false,
+  min_fringe_width = 10,
   widths = {
     normal = 128,
     narrow = 88,
@@ -33,6 +35,7 @@ end
 
 local function reset_state()
   state.active = false
+  state.initial_resize_called = false
 
   if vim.api.nvim_win_is_valid(state.left_win) then
     vim.api.nvim_win_close(state.left_win, true)
@@ -46,51 +49,34 @@ local function reset_state()
 end
 
 local function capture_window_info()
-  -- TODO: Save window info needed to size windows
-  local total_height = vim.o.lines
-  local cmdheight = vim.o.cmdheight
-  local statusline = vim.o.laststatus > 0 and 1 or 0
-  local nvim_height = total_height - cmdheight - statusline
-  local nvim_width = vim.o.columns
+  -- local total_height = vim.o.lines
+  -- local cmdheight = vim.o.cmdheight
+  -- local statusline = vim.o.laststatus > 0 and 1 or 0
+  -- local nvim_height = total_height - cmdheight - statusline
+  -- local nvim_width = vim.o.columns
 
   local win_ids = vim.api.nvim_list_wins()
 
-  print(string.format("Nvim:\n" .. "  Size: width=%d, height=%d\n", nvim_width, nvim_height))
-
+  state.wins = {}
   for _, win_id in ipairs(win_ids) do
     local win_config = vim.api.nvim_win_get_config(win_id)
     local win_info = vim.fn.getwininfo(win_id)[1]
-    local buf = vim.api.nvim_win_get_buf(win_id)
-    local buf_info = vim.fn.getbufinfo(buf)[1]
-    util.print_table("win_config", win_config)
-    util.print_table("win_info", win_info)
-    util.print_table("win_info.variables", win_info.variables)
-    print(vim.api.nvim_buf_get_name(buf))
-    util.print_table("buf_info", buf_info)
+    -- util.print_table("win_config", win_config)
+    -- util.print_table("win_info", win_info)
+    -- util.print_table("win_info.variables", win_info.variables)
 
     local row = win_config.row or win_info.winrow
     local col = win_config.col or win_info.wincol
     local height = vim.api.nvim_win_get_height(win_id)
     local width = vim.api.nvim_win_get_width(win_id)
 
-    print(
-      string.format(
-        "Window %d:\n"
-          .. "  Buffer: %d\n"
-          .. "  Position: row=%d, col=%d\n"
-          .. "  Size: width=%d, height=%d\n"
-          .. "  Winnr: %d\n"
-          .. "  Is current: %s",
-        win_id,
-        buf,
-        row,
-        col,
-        width,
-        height,
-        win_info.winnr,
-        win_id == vim.api.nvim_get_current_win() and "yes" or "no"
-      )
-    )
+    table.insert(state.wins, {
+      win_id = win_id,
+      row = row,
+      col = col,
+      height = height,
+      width = width,
+    })
   end
 end
 
@@ -160,7 +146,7 @@ local function resize_windows()
   end
 
   local fringe_width = math.max(math.floor((nvim_width - (M.options.widths.normal * win_column_count)) / 2), 0)
-  if fringe_width < 10 then
+  if fringe_width < M.options.min_fringe_width then
     fringe_width = math.max(math.floor((nvim_width - (M.options.widths.narrow * win_column_count)) / 2), 0)
   end
 
@@ -169,6 +155,8 @@ local function resize_windows()
   for _, win_id in ipairs(wins) do
     vim.api.nvim_win_set_width(win_id, (nvim_width - (2 * fringe_width)) / win_column_count)
   end
+
+  capture_window_info()
 end
 
 local function start_fringe_mode()
@@ -205,6 +193,7 @@ end
 ---@param options FringeModeOptions|nil
 function M.setup(options)
   M.options = vim.tbl_deep_extend("force", default_options, options or {})
+
   if state.augroup then
     M.disable()
   end
@@ -241,17 +230,23 @@ function M.setup(options)
   vim.api.nvim_create_autocmd("WinResized", {
     group = state.augroup,
     callback = function()
-      -- TODO: Implement me
-      -- if is_fringe_mode_active() then
-      --   position_windows()
-      -- end
+      if is_fringe_mode_active() then
+        if not state.initial_resize_called then
+          state.initial_resize_called = true
+        else
+          -- TODO: Enable when function supports resizing after initial resize
+          -- resize_windows()
+        end
+      end
     end,
   })
 
   vim.api.nvim_create_autocmd("VimResized", {
     group = state.augroup,
     callback = function()
-      -- TODO: Implement me
+      if is_fringe_mode_active() then
+        resize_windows()
+      end
     end,
   })
 end
@@ -261,6 +256,18 @@ M.toggle_fringe_mode_windows = function()
     start_fringe_mode()
   else
     reset_state()
+  end
+end
+
+M.balance_fringe_mode_windows = function()
+  if is_fringe_mode_active() then
+    local fringe_width = math.max(
+      math.floor((vim.api.nvim_win_get_width(state.left_win) + vim.api.nvim_win_get_width(state.right_win)) / 2),
+      0
+    )
+    print(fringe_width)
+    vim.api.nvim_win_set_width(state.left_win, fringe_width)
+    vim.api.nvim_win_set_width(state.right_win, fringe_width)
   end
 end
 
