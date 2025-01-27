@@ -11,7 +11,8 @@ TODO: Add a video here to show fringe-mode.nvim in action.
 - Toggle on and off
 - Fringe windows can't be navigated to from other windows
 - Recreate fringe windows if they get closed, but mode is active
-- Ability to set bg color for fringe windows
+- Ability to set bg color for fringe windows and a few other options
+- Ability to balance out fringe window widths after resizing othe windows
 
 ## Installation
 
