@@ -280,6 +280,10 @@ M.toggle_fringe_mode_windows = function()
   end
 end
 
+M.reset_fringe_mode = function()
+  reset_state()
+end
+
 M.balance_fringe_mode_windows = function()
   if is_fringe_mode_active() then
     local fringe_width = math.max(
