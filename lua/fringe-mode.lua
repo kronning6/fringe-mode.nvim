@@ -173,7 +173,7 @@ local function resize_windows()
   vim.api.nvim_win_set_width(state.right_win, fringe_width)
   if #state.wins <= 0 then
     for _, win_id in ipairs(wins) do
-      vim.api.nvim_win_set_width(win_id, (nvim_width - (2 * fringe_width)) / win_column_count)
+      vim.api.nvim_win_set_width(win_id, math.floor((nvim_width - (2 * fringe_width)) / win_column_count))
     end
   end
 
