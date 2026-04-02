@@ -33,17 +33,21 @@ local function is_fringe_mode_window(win_id)
   return state.left_win == win_id or state.right_win == win_id
 end
 
+local function is_valid_win(win_id)
+  return win_id ~= nil and vim.api.nvim_win_is_valid(win_id)
+end
+
 local function reset_state()
   state.active = false
   state.initial_resize_called = false
   state.wins = {}
 
-  if vim.api.nvim_win_is_valid(state.left_win) then
+  if is_valid_win(state.left_win) then
     vim.api.nvim_win_close(state.left_win, true)
   end
   state.left_win = nil
 
-  if vim.api.nvim_win_is_valid(state.right_win) then
+  if is_valid_win(state.right_win) then
     vim.api.nvim_win_close(state.right_win, true)
   end
   state.right_win = nil
@@ -121,7 +125,7 @@ local function position_windows()
 end
 
 local function resize_windows()
-  if M.options.balance_windows and #state.wins <= 0 then
+  if M.options.balance_windows then
     vim.cmd("wincmd =")
   end
 
@@ -129,7 +133,6 @@ local function resize_windows()
   local win_ids = vim.api.nvim_list_wins()
 
   local win_column_count = 0
-  local win_width_total = 0
   local wins = {}
   for _, win_id in ipairs(win_ids) do
     -- Get window position and size
@@ -139,42 +142,22 @@ local function resize_windows()
     local win_info = vim.fn.getwininfo(win_id)[1]
 
     local row = win_config.row or win_info.winrow
-    local width = vim.api.nvim_win_get_width(win_id)
-
     -- TODO: Track more than the top row to support horizontal splits
     if row == 1 and not is_fringe_mode_window(win_id) then
       win_column_count = win_column_count + 1
-      win_width_total = win_width_total + width
       table.insert(wins, win_id)
     end
   end
 
-  local prev_win_width_total = 0
-  for _, win in ipairs(state.wins) do
-    if win.row == 1 and not is_fringe_mode_window(win.win_id) then
-      prev_win_width_total = prev_win_width_total + win.width
-    end
-  end
-
-  local fringe_width = 0
-  if #state.wins > 0 then
-    fringe_width = math.max(
-      math.floor(vim.api.nvim_win_get_width(state.left_win) + ((prev_win_width_total - win_width_total) / 2)),
-      0
-    )
-  else
-    fringe_width = math.max(math.floor((nvim_width - (M.options.widths.normal * win_column_count)) / 2), 0)
-    if fringe_width < M.options.min_fringe_width then
-      fringe_width = math.max(math.floor((nvim_width - (M.options.widths.narrow * win_column_count)) / 2), 0)
-    end
+  local fringe_width = math.max(math.floor((nvim_width - (M.options.widths.normal * win_column_count)) / 2), 0)
+  if fringe_width < M.options.min_fringe_width then
+    fringe_width = math.max(math.floor((nvim_width - (M.options.widths.narrow * win_column_count)) / 2), 0)
   end
 
   vim.api.nvim_win_set_width(state.left_win, fringe_width)
   vim.api.nvim_win_set_width(state.right_win, fringe_width)
-  if #state.wins <= 0 then
-    for _, win_id in ipairs(wins) do
-      vim.api.nvim_win_set_width(win_id, math.floor((nvim_width - (2 * fringe_width)) / win_column_count))
-    end
+  for _, win_id in ipairs(wins) do
+    vim.api.nvim_win_set_width(win_id, math.floor((nvim_width - (2 * fringe_width)) / win_column_count))
   end
 
   capture_window_info()
@@ -231,13 +214,14 @@ function M.setup(options)
   })
 
   vim.api.nvim_create_autocmd("WinClosed", {
+    group = state.augroup,
     callback = function(args)
       local closed_win_id = math.floor(tonumber(args.match) or -1)
       if
         is_fringe_mode_active()
         and (
-          (not vim.api.nvim_win_is_valid(state.left_win) and closed_win_id == state.right_win)
-          or (not vim.api.nvim_win_is_valid(state.right_win) and closed_win_id == state.left_win)
+          (not is_valid_win(state.left_win) and closed_win_id == state.right_win)
+          or (not is_valid_win(state.right_win) and closed_win_id == state.left_win)
         )
       then
         reset_state()
@@ -256,7 +240,7 @@ function M.setup(options)
           state.initial_resize_called = true
         else
           -- TODO: Enable when function supports resizing after initial resize
-          resize_windows()
+          -- resize_windows()
         end
       end
     end,
